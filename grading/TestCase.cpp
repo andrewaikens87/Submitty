@@ -20,7 +20,6 @@
 #include <unistd.h>
 #include <iostream>
 
-
 // Set mode bits on shared memory
 #define SHM_MODE (SHM_W | SHM_R | IPC_CREAT)
 
@@ -64,6 +63,25 @@ std::vector<std::string> stringOrArrayOfStrings(nlohmann::json j, const std::str
     nlohmann::json::const_iterator itr2 = itr->begin();
     while (itr2 != itr->end()) {
       assert (itr2->is_string());
+      answer.push_back(*itr2);
+      itr2++;
+    }
+  }
+  return answer;
+}
+
+std::vector<nlohmann::json> mapOrArrayOfMaps(nlohmann::json j, const std::string what){
+  std::vector<nlohmann::json> answer;
+  nlohmann::json::const_iterator itr = j.find(what);
+  if (itr == j.end())
+    return answer;
+  if (!itr->is_array()) {
+    answer.push_back(*itr);    
+  } else {
+    assert (itr->is_array());
+    nlohmann::json::const_iterator itr2 = itr->begin();
+    while (itr2 != itr->end()) {
+      assert (itr2->is_object());
       answer.push_back(*itr2);
       itr2++;
     }

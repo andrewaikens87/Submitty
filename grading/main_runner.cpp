@@ -7,8 +7,6 @@
 #include "default_config.h"
 #include "execute.h"
 
-
-
 // =====================================================================
 // =====================================================================
 
@@ -59,28 +57,30 @@ int main(int argc, char *argv[]) {
 
     if (my_testcase.isFileCheck()) continue;
     if (my_testcase.isCompilation()) continue;
-    std::vector<std::string> commands = stringOrArrayOfStrings((*tc)[i],"command");
+    std::vector<std::map> commands = mapOrArrayOfMaps((*tc)[i],"command");
     std::vector<std::string> actions  = stringOrArrayOfStrings((*tc)[i],"actions");
     assert (commands.size() > 0);
 
     std::cout << "TITLE " << my_testcase.getTitle() << std::endl;
     
-    for (int x = 0; x < commands.size(); x++) {
+    //broken for > 1 testcases. This needs to be refactored so that it runs for each command inside of each command.
+    std::string which = "_" + std::to_string(x);
+    // for (int x = 0; x < commands.size(); x++) {
 
-      std::cout << "COMMAND " << commands[x] << std::endl;
+    //   std::cout << "COMMAND " << commands[x]['command'] << std::endl;
 
-      assert (commands[x] != "MISSING COMMAND");
-      assert (commands[x] != "");
+    //   assert (commands[x]['command'] != "MISSING COMMAND");
+    //   assert (commands[x]['command'] != "");
       
-      std::string which = "";
-      if (commands.size() > 1) {
-        which = "_" + std::to_string(x);
-      }
+    //   if (commands.size() > 1) {
+    //     which = "_" + std::to_string(x);
+    //   }
+    // }
       
       
       std::string logfile = my_testcase.getPrefix() + "_execute_logfile.txt";
       // run the command, capturing STDOUT & STDERR
-      int exit_no = execute(commands[x] +
+      int exit_no = execute(commands +
                             " 1>" + my_testcase.getPrefix() + "_STDOUT" + which + ".txt" +
                             " 2>" + my_testcase.getPrefix() + "_STDERR" + which + ".txt",
                             actions,
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
                             config_json.value("resource_limits",nlohmann::json()),
                             config_json); 
       
-    }
+    
     
     std::vector<std::vector<std::string>> filenames = my_testcase.getFilenames();
     assert (filenames.size() > 0);

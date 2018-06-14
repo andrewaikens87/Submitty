@@ -592,17 +592,17 @@ fi
 # CAUTION: needs users/groups for security 
 # These commands should be run manually if testing Docker integration
 
-# rm -rf /tmp/docker
-# mkdir -p /tmp/docker
-# cp ${SUBMITTY_REPOSITORY}/.setup/Dockerfile /tmp/docker/Dockerfile
-# cp -R ${SUBMITTY_INSTALL_DIR}/drmemory/ /tmp/docker/
-# cp -R ${SUBMITTY_INSTALL_DIR}/SubmittyAnalysisTools /tmp/docker/
+rm -rf /tmp/docker
+mkdir -p /tmp/docker
+cp ${SUBMITTY_REPOSITORY}/.setup/Dockerfile /tmp/docker/Dockerfile
+cp -R ${SUBMITTY_INSTALL_DIR}/drmemory/ /tmp/docker/
+cp -R ${SUBMITTY_INSTALL_DIR}/SubmittyAnalysisTools /tmp/docker/
 
-# chown hwcron:hwcron -R /tmp/docker
+chown hwcron:hwcron -R /tmp/docker
 
-# pushd /tmp/docker
-# su -c 'docker build -t ubuntu:custom -f Dockerfile .' hwcron
-# popd > /dev/null
+pushd /tmp/docker
+su -c 'docker build -t ubuntu:custom -f Dockerfile .' hwcron
+popd > /dev/null
 
 
 #################################################################
