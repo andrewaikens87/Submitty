@@ -80,8 +80,11 @@ public:
 
   // -------------------------------
   // COMMANDS
+  std::vector<std::string> getMyCommands(nlohmann::json commands) const;
+
+
   std::vector<std::string> getCommands() const {
-    std::vector<std::string> commands = stringOrArrayOfStrings(_json,"command");
+    std::vector<std::string> commands = getMyCommands(_json);
     //assert (commands.size() > 0);
     return commands;
   }

@@ -986,7 +986,7 @@ void TerminateProcess(float &elapsed, int childPID) {
 
 
 // Executes command (from shell) and returns error code (0 = success)
-int execute(const std::vector<nlohmann::json> &commands, 
+int execute(const std::string &cmd, 
       const std::vector<std::string> actions,
       const std::string &execute_logfile,
       const nlohmann::json &test_case_limits,
@@ -995,42 +995,6 @@ int execute(const std::vector<nlohmann::json> &commands,
 
   std::set<std::string> invalid_windows;
   bool window_mode = false; //Tells us if the process is expected to spawn a window. (additional support later) 
-  
-  char* name_ptr = getenv("DOCKER_NAME");
-
-  std::string docker_name;
-
-  if(name_ptr == NULL){
-    std::cout << "There was no DOCKER_NAME environment variable" << std::endl;
-    docker_name = "local";
-  }else{
-    docker_name = std::string(name_ptr);
-  }
-
-
-
-  std::cout << "Docker name is " << docker_name << std::endl;
-
-  nlohmann::json command_map;
-
-  for(std::vector<nlohmann::json>::const_iterator it = commands.begin(); it != commands.end(); ++it) {
-    nlohmann::json::const_iterator val = it->find("target");
-    std::string curr_target = *val;
-    std::cout << "target is " << curr_target << " our name is " << docker_name << std::endl;
-    if(curr_target == docker_name){
-      std::cout << "found it!" << std::endl;
-      command_map = *it;
-      break;
-    }
-  }
-
-  if(command_map == NULL){
-    std::cout << "ERROR: Could not find " << docker_name << " in the command map." << std::endl;
-    exit(1);
-  }
-
-  //TODO assuming string for now, but can be array of strings.
-  std::string cmd = *command_map.find("command"); 
 
   if(actions.size() > 0){ //right now, we assume if there are actions, there will be a window.  
     std::cout << "Received " << actions.size() << " actions" << std::endl; //useful debug line.

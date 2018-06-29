@@ -19,6 +19,11 @@
 #include <sys/shm.h>
 #include <unistd.h>
 #include <iostream>
+//DEBUG
+#include <stdio.h>
+
+extern char **environ;
+//DEBUG
 
 // Set mode bits on shared memory
 #define SHM_MODE (SHM_W | SHM_R | IPC_CREAT)
@@ -371,6 +376,62 @@ bool validShowValue(const nlohmann::json& v) {
 }
 
 
+
+//TODO this will be fixed on rewrite.
+std::vector<std::string> TestCase::getMyCommands(nlohmann::json testcase) const{
+
+  char* name_ptr = getenv("DOCKER_NAME");
+
+  std::cout<<"DEBUG: Printing all environment variables"<<std::endl;
+
+  int i = 1;
+  char *s = *environ;
+
+  for (; s; i++) {
+    std::cout<<s<<std::endl;
+    s = *(environ+i);
+  }
+
+  std::string docker_name;
+
+  if(name_ptr == NULL){
+    std::cout << "There was no DOCKER_NAME environment variable here" << std::endl;
+    docker_name = "";
+  }else{
+    docker_name = std::string(name_ptr);
+    std::cout << "Docker name is " << docker_name << std::endl;
+  }
+
+  std::vector<nlohmann::json> commands = mapOrArrayOfMaps(testcase, "command");
+
+  //TODO: Find a better solution.
+  //if there is no target, just take the commands from the first dict.
+  if(docker_name == ""){
+      return stringOrArrayOfStrings(commands, "command");
+  }
+
+  nlohmann::json command_map;
+  bool found = false;
+  for(std::vector<nlohmann::json>::const_iterator it = commands.begin(); it != commands.end(); ++it) {
+    nlohmann::json::const_iterator val = it->find("target");
+    std::string curr_target = *val;
+    std::cout << "target is " << curr_target << " our name is " << docker_name << std::endl;
+    if(curr_target == docker_name){
+      std::cout << "found it!" << std::endl;
+      found = true;
+      command_map = *it;
+      break;
+    }
+  }
+
+  if(!found){
+    std::cout << "ERROR: Could not find " << docker_name << " in the command map." << std::endl;
+    exit(1);
+  }
+
+  return stringOrArrayOfStrings(command_map, "command");
+}
+
 TestCase::TestCase (nlohmann::json &whole_config, int which_testcase) :
   _json((*whole_config.find("testcases"))[which_testcase]) {
 
@@ -391,7 +452,9 @@ TestCase::TestCase (nlohmann::json &whole_config, int which_testcase) :
   if (itr != _json.end()) {
     assert (itr->is_array());
     VerifyGraderDeductions(*itr);
-    std::vector<std::string> commands = stringOrArrayOfStrings(_json,"command");
+    std::cout << "doin it right CHECK TEST" <<std::endl;
+    std::vector<std::string> commands = getCommands();
+    std::cout << "done it" << std::endl;
     AddDefaultGraders(commands,*itr,whole_config);
 
      for (int i = 0; i < (*itr).size(); i++) {

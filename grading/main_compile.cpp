@@ -186,7 +186,9 @@ int main(int argc, char *argv[]) {
       
       assert (my_testcase.numFileGraders() > 0);
       
+      std::cout << "Ok." << std::endl;
       std::vector<std::string> commands = my_testcase.getCommands();
+      std::cout << "that happened" << std::endl;
 
       std::cout << "TEST " << i+1 << " IS COMPILATION!" << std::endl;
 

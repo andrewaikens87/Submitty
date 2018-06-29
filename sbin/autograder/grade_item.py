@@ -139,7 +139,7 @@ def unzip_this_file(zipfilename,path):
 #dockers will either be a list of docker names or None.
 #If dockers is a list of docker names, spin up a docker for each name.
 #If dockers is none, 
-def launch_dockers(dockers, tmp, job_id,is_batch_job,which_untrusted,submission_path):
+def launch_dockers(dockers, tmp, job_id,is_batch_job,which_untrusted,submission_path, grading_began):
     #If dockers is none, just create one docker and return its name.
     containers = list()
 
@@ -147,6 +147,7 @@ def launch_dockers(dockers, tmp, job_id,is_batch_job,which_untrusted,submission_
       this_container = subprocess.check_output(['docker', 'run', '-t', '-d',
                                                '-v', tmp + ':' + tmp,
                                                'ubuntu:custom']).decode('utf8').strip()
+      print("started {0}".format(this_container))
       dockerlaunch_done=dateutils.get_current_time()
       dockerlaunch_time = (dockerlaunch_done-grading_began).total_seconds()
       grade_items_logging.log_message(job_id,is_batch_job,which_untrusted,submission_path,"dcct:",dockerlaunch_time,"docker container created")
@@ -154,11 +155,14 @@ def launch_dockers(dockers, tmp, job_id,is_batch_job,which_untrusted,submission_
     else:
       for name in dockers:
         #pass in docker names by environment variables -e DOCKER_NAME={0}
+        if name == 'router':
+          continue
         this_container = subprocess.check_output(['docker', 'run', '-t', '-d',
                                                '-v', tmp + ':' + tmp,
                                                '--name', name,
-                                               '-e', 'DOCKER_NAME={0}'.format(name)
+                                               '--env', 'DOCKER_NAME={0}'.format(name),
                                                'ubuntu:custom']).decode('utf8').strip()
+        print("started {0}".format(this_container))
         dockerlaunch_done=dateutils.get_current_time()
         dockerlaunch_time = (dockerlaunch_done-grading_began).total_seconds()
         grade_items_logging.log_message(job_id,is_batch_job,which_untrusted,submission_path,"dcct:",dockerlaunch_time,"docker container {0} created".format(name))
@@ -168,31 +172,40 @@ def launch_dockers(dockers, tmp, job_id,is_batch_job,which_untrusted,submission_
         #instantiate the router
         router = subprocess.check_output(['docker', 'run', '-t', '-d',
                                                '-v', tmp + ':' + tmp,
-                                               '--name', 'router,
-                                               '-e', 'DOCKER_NAME={0}'.format('router')
+                                               '--name', 'router',
+                                               '--env', 'DOCKER_NAME={0}'.format('router'),
                                                'ubuntu:custom']).decode('utf8').strip()
+        print("started {0}".format(router))
         #TODO add the router to containers???
         #create a network for each docker
         for name in dockers:
+          if name == 'router':
+            continue
           #TODO unique names
           network_name = '{0}_network'.format(name)
           actual_name = '{0}_Actual'.format(name)
-
+          print('adding {0} to network {1} with actual name {2}'.format(name,network_name, actual_name))
           subprocess.check_output(['docker', 'network', 'create', '--driver', 'bridge', network_name]).decode('utf8').strip()
           # TODO assuming all possible connections until the rewrite.
           subprocess.check_output(['docker', 'network', 'connect', '--alias', actual_name, network_name, name]).decode('utf8').strip()
 
           #The router pretends to be all dockers on this network.
-          all_but_me = [x for x in routers if x != name]
-          aliases = '--alias {0}'.format(' --alias '.join(all_but_me))
-          subprocess.check_output(['docker', 'network', 'connect', aliases, network_name, name]).decode('utf8').strip()
+          #all_but_me = [x for x in dockers if x != name and x != 'router']
+          aliases = []
+          for x in dockers:
+            if x != name and x != 'router':
+              aliases.append('--alias')
+              aliases.append(x)
+          # aliases = '--alias {0}'.format(' --alias '.join(all_but_me))
+          print('adding router to {0} with aliases {1}'.format(network_name, aliases))
+          subprocess.check_output(['docker', 'network', 'connect'] + aliases + [network_name, 'router']).decode('utf8').strip()
 
 
     return containers
 
 #dockers will either be a list of docker names or None.
 #If dockers is a list of docker names, spin up a docker for each name.
-def destroy_dockers(containers,job_id,is_batch_job,which_untrusted,submission_path):
+def destroy_dockers(containers,job_id,is_batch_job,which_untrusted,submission_path,grading_finished):
     #If dockers is none, just create one docker and return its name.
     if len(containers) == 1:
       container = containers[0]
@@ -202,24 +215,29 @@ def destroy_dockers(containers,job_id,is_batch_job,which_untrusted,submission_pa
       dockerdestroy_time = (dockerdestroy_done-grading_finished).total_seconds()
       grade_items_logging.log_message(job_id,is_batch_job,which_untrusted,submission_path,"ddt:",dockerdestroy_time,"docker container destroyed")
     else:
-      for docker in dockers:
+      for name, c_id in containers:
+        if name == 'router':
+          continue
         #pass in docker names by environment variables -e DOCKER_NAME={0}
-        subprocess.call(['docker', 'rm', '-f', docker[0]])
+        subprocess.call(['docker', 'rm', '-f', name])
         dockerdestroy_done=dateutils.get_current_time()
         dockerdestroy_time = (dockerdestroy_done-grading_finished).total_seconds()
         grade_items_logging.log_message(job_id,is_batch_job,which_untrusted,submission_path,"ddt:",dockerdestroy_time,"docker container destroyed")
 
-      if len(dockers) > 1:
+      if len(containers) > 1:
         #instantiate the router
         #TODO is router in containers???
         subprocess.call(['docker', 'rm', '-f', 'router'])
 
         #remove the networks
         for name, c_id in containers:
+          if name == 'router':
+            continue
           network_name = '{0}_network'.format(name)
           subprocess.call(['docker', 'network', 'rm', network_name])
 
 def grade_from_zip(my_autograding_zip_file,my_submission_zip_file,which_untrusted):
+    print("{0} GRADING {1}".format(which_untrusted, my_autograding_zip_file))
     os.chdir(SUBMITTY_DATA_DIR)
     tmp = os.path.join("/var/local/submitty/autograding_tmp/",which_untrusted,"tmp")
 
@@ -319,13 +337,21 @@ def grade_from_zip(my_autograding_zip_file,my_submission_zip_file,which_untruste
     add_permissions(tmp_logs,stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
 
-    containers = None
-    if USE_DOCKER:
-      try:
-        dockers = gradeable_config_obj['docker_list']
-      except:
-        dockers = None
-      containers = launch_dockers(dockers, tmp, job_id,is_batch_job,which_untrusted,submission_path)
+    
+    # if USE_DOCKER:
+    #   try:
+    #     dockers = gradeable_config_obj['docker_list']
+    #   except:
+    #     dockers = None
+
+    with open(os.path.join(tmp_submission,".grading_began"), 'r') as f:
+        grading_began_longstring=f.read()
+    grading_began = dateutils.read_submitty_date(grading_began_longstring)
+
+
+    USE_DOCKER = True
+    dockers = ['docker_A', 'docker_B', 'router']
+    containers = launch_dockers(dockers, tmp, job_id,is_batch_job,which_untrusted,submission_path, grading_began)
        #startup docker containers
 
     # grab the submission time
@@ -410,8 +436,10 @@ def grade_from_zip(my_autograding_zip_file,my_submission_zip_file,which_untruste
         try:
             if USE_DOCKER:
                 #TODO: expand to be multithreaded for networks.
+                processes = list()
                 for name, c_id in containers:
-                  runner_success = subprocess.Popen(['docker', 'exec', '-w', tmp_work, 
+                  print('spinning up docker {0} {1}'.format(name, c_id))
+                  p = subprocess.Popen(['docker', 'exec', '-w', tmp_work, 
                                                     name,
                                                     os.path.join(tmp_work, 'my_runner.out'), 
                                                     queue_obj['gradeable'],
@@ -419,8 +447,10 @@ def grade_from_zip(my_autograding_zip_file,my_submission_zip_file,which_untruste
                                                     str(queue_obj['version']), 
                                                     submission_string], 
                                                     stdout=logfile)
+                  processes.append(p)
                 if len(containers) > 1:
-                  runner_success = subprocess.Popen(['docker', 'exec', '-w', tmp_work, 
+                  print('spinning up router.')
+                  p = subprocess.Popen(['docker', 'exec', '-w', tmp_work, 
                                                     'router',
                                                     os.path.join(tmp_work, 'my_runner.out'), 
                                                     queue_obj['gradeable'],
@@ -428,6 +458,14 @@ def grade_from_zip(my_autograding_zip_file,my_submission_zip_file,which_untruste
                                                     str(queue_obj['version']), 
                                                     submission_string], 
                                                     stdout=logfile)
+                  processes.append(p)
+                runner_success = 0
+                for process in processes:
+                  process.wait()
+                  rc = process.returncode
+                  print("max of {0} and {1}".format(runner_success, process.returncode))
+                  runner_success = max(runner_success, rc)
+
             else:
                 runner_success = subprocess.call([os.path.join(SUBMITTY_INSTALL_DIR, "sbin", "untrusted_execute"),
                                                   which_untrusted,
@@ -523,6 +561,9 @@ def grade_from_zip(my_autograding_zip_file,my_submission_zip_file,which_untruste
                                                  str(queue_obj["version"]),
                                                  submission_string],
                                                 stdout=logfile)
+    with open(os.path.join(tmp_logs,"validator_log.txt"), 'r') as logfile:
+      for line in logfile:
+        print(line)
 
     if validator_success == 0:
         print (which_machine,which_untrusted,"VALIDATOR OK")
@@ -583,9 +624,6 @@ def grade_from_zip(my_autograding_zip_file,my_submission_zip_file,which_untruste
     seconds_late = int((submission_datetime-gradeable_deadline_datetime).total_seconds())
     # note: negative = not late
     
-    with open(os.path.join(tmp_submission,".grading_began"), 'r') as f:
-        grading_began_longstring=f.read()
-    grading_began = dateutils.read_submitty_date(grading_began_longstring)
     grading_finished_longstring = dateutils.write_submitty_date(grading_finished)
 
     gradingtime = (grading_finished-grading_began).total_seconds()
@@ -647,7 +685,7 @@ def grade_from_zip(my_autograding_zip_file,my_submission_zip_file,which_untruste
     # --------------------------------------------------------------------
     # CLEAN UP DOCKER
     if USE_DOCKER:
-        destroy_dockers(containers,job_id,is_batch_job,which_untrusted,submission_path)
+        destroy_dockers(containers,job_id,is_batch_job,which_untrusted,submission_path,grading_finished)
 
     return my_results_zip_file
 

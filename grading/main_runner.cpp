@@ -57,14 +57,14 @@ int main(int argc, char *argv[]) {
 
     if (my_testcase.isFileCheck()) continue;
     if (my_testcase.isCompilation()) continue;
-    std::vector<std::map> commands = mapOrArrayOfMaps((*tc)[i],"command");
+    std::vector<nlohmann::json> commands = mapOrArrayOfMaps((*tc)[i],"command");
     std::vector<std::string> actions  = stringOrArrayOfStrings((*tc)[i],"actions");
     assert (commands.size() > 0);
 
     std::cout << "TITLE " << my_testcase.getTitle() << std::endl;
     
     //broken for > 1 testcases. This needs to be refactored so that it runs for each command inside of each command.
-    std::string which = "_" + std::to_string(x);
+    std::string which = "";
     // for (int x = 0; x < commands.size(); x++) {
 
     //   std::cout << "COMMAND " << commands[x]['command'] << std::endl;
@@ -77,18 +77,53 @@ int main(int argc, char *argv[]) {
     //   }
     // }
       
-      
-      std::string logfile = my_testcase.getPrefix() + "_execute_logfile.txt";
-      // run the command, capturing STDOUT & STDERR
-      int exit_no = execute(commands +
-                            " 1>" + my_testcase.getPrefix() + "_STDOUT" + which + ".txt" +
-                            " 2>" + my_testcase.getPrefix() + "_STDERR" + which + ".txt",
-                            actions,
-                            logfile,
-                            my_testcase.get_test_case_limits(),
-                            config_json.value("resource_limits",nlohmann::json()),
-                            config_json); 
-      
+
+    char* name_ptr = getenv("DOCKER_NAME");
+
+    std::string docker_name;
+
+    if(name_ptr == NULL){
+      std::cout << "There was no DOCKER_NAME environment variable" << std::endl;
+      docker_name = "local";
+    }else{
+      docker_name = std::string(name_ptr);
+    }
+
+    std::cout << "Docker name is " << docker_name << std::endl;
+
+    nlohmann::json command_map;
+    bool found = false;
+    for(std::vector<nlohmann::json>::const_iterator it = commands.begin(); it != commands.end(); ++it) {
+      nlohmann::json::const_iterator val = it->find("target");
+      std::string curr_target = *val;
+      std::cout << "target is " << curr_target << " our name is " << docker_name << std::endl;
+      if(curr_target == docker_name){
+        std::cout << "found it!" << std::endl;
+        found = true;
+        command_map = *it;
+        break;
+      }
+    }
+
+    if(!found){
+      std::cout << "ERROR: Could not find " << docker_name << " in the command map." << std::endl;
+      exit(1);
+    }
+
+    //TODO assuming string for now, but can be array of strings.
+    std::string command = command_map.at("command"); 
+        
+    std::string logfile = my_testcase.getPrefix() + "_execute_logfile.txt";
+    // run the command, capturing STDOUT & STDERR
+    int exit_no = execute(command +
+                          " 1>" + my_testcase.getPrefix() + "_STDOUT" + which + ".txt" +
+                          " 2>" + my_testcase.getPrefix() + "_STDERR" + which + ".txt",
+                          actions,
+                          logfile,
+                          my_testcase.get_test_case_limits(),
+                          config_json.value("resource_limits",nlohmann::json()),
+                        config_json); 
+  
     
     
     std::vector<std::vector<std::string>> filenames = my_testcase.getFilenames();

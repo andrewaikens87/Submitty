@@ -95,11 +95,11 @@ int main(int argc, char *argv[]) {
       if (!hidden)
         visible += points;
     }
-    TestCase tc(config_json,which_testcase);
-    if (tc.isSubmissionLimit()) {
-      max_submissions = tc.getMaxSubmissions();
+    TestCase test_case(config_json,which_testcase);
+    if (test_case.isSubmissionLimit()) {
+      max_submissions = test_case.getMaxSubmissions();
     }
-    all.push_back(printTestCase(tc)); 
+    all.push_back(printTestCase(test_case)); 
   }
   std::cout << "processed " << all.size() << " test cases" << std::endl;
   j["num_testcases"] = all.size();
